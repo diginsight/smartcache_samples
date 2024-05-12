@@ -16,6 +16,8 @@ namespace SampleWebApi.Controllers
     {
         private readonly ILogger<PlantsController> logger;
         private readonly IClassAwareOptionsMonitor<FeatureFlagOptions> featureFlagsOptionsMonitor;
+        private readonly ISmartCache smartCache;
+        private readonly ICacheKeyService cacheKeyService;
 
         private static readonly string[] Summaries = new[]
         {
@@ -23,15 +25,53 @@ namespace SampleWebApi.Controllers
         };
 
         public PlantsController(ILogger<PlantsController> logger,
-            IClassAwareOptionsMonitor<FeatureFlagOptions> featureFlagsOptionsMonitor)
+            IClassAwareOptionsMonitor<FeatureFlagOptions> featureFlagsOptionsMonitor,
+            ISmartCache smartCache,
+            ICacheKeyService cacheKeyService)
         {
             this.logger = logger;
             this.featureFlagsOptionsMonitor = featureFlagsOptionsMonitor;
+            this.smartCache = smartCache;
+            this.cacheKeyService = cacheKeyService;
         }
 
         [HttpGet("getplants", Name = nameof(GetPlantsAsync))]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
         public async Task<IEnumerable<Plant>> GetPlantsAsync()
+        {
+            using var activity = Program.ActivitySource.StartMethodActivity(logger); // , new { foo, bar }
+
+            var result = default(IEnumerable<Plant>);
+
+            Thread.Sleep(1000);
+
+            // read string plantsString from content file /Content/plants.json
+            var plantsString = await System.IO.File.ReadAllTextAsync("Content/plants.json");
+            var plants = JsonConvert.DeserializeObject<IEnumerable<Plant>>(plantsString);
+
+            activity.SetOutput(plants);
+            return plants;
+        }
+
+        [HttpGet("getplantscached", Name = nameof(GetPlantsCachedAsync))]
+        [ApiVersion(ApiVersions.V_2024_04_26.Name)]
+        public async Task<IEnumerable<Plant>> GetPlantsCachedAsync()
+        {
+            using var activity = Program.ActivitySource.StartMethodActivity(logger);
+
+            var plants = await smartCache.GetAsync(
+                new MethodCallCacheKey(cacheKeyService, typeof(PlantsController), nameof(GetPlantsCachedAsync)),
+                _ => GetPlantsAsync(),
+                new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) }
+            );
+
+            activity.SetOutput(plants);
+            return plants;
+        }
+
+        [HttpGet("getplantbyid", Name = nameof(GetPlantByIdAsync))]
+        [ApiVersion(ApiVersions.V_2024_04_26.Name)]
+        public async Task<IEnumerable<Plant>> GetPlantByIdAsync(Guid id)
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger); // , new { foo, bar }
 
@@ -49,23 +89,20 @@ namespace SampleWebApi.Controllers
             return result;
         }
 
-        [HttpGet("getplantscached", Name = nameof(GetPlantsCachedAsync))]
+        [HttpGet("getplantbyidcached", Name = nameof(GetPlantByIdCachedAsync))]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
-        public async Task<IEnumerable<Plant>> GetPlantsCachedAsync()
+        public async Task<IEnumerable<Plant>> GetPlantByIdCachedAsync(Guid id)
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger);
 
-            //return await smartCache.GetAsync(
-            //    new GetAllCacheKey(skip, take),
-            //    _ => plantRepository.GetAllAsync(skip, take),
-            //    new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) }
-            //);
+            var plants = await smartCache.GetAsync(
+                new MethodCallCacheKey(cacheKeyService, typeof(PlantsController), nameof(GetPlantByIdCachedAsync)),
+                _ => GetPlantByIdAsync(id),
+                new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) }
+            );
 
-
-
-            // activity.SetOutput(result);
-            return null;
+            activity.SetOutput(plants);
+            return plants;
         }
-
     }
 }

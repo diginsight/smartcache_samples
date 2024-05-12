@@ -32,7 +32,6 @@ public static class AddObservabilityExtension
         OpenTelemetryOptions openTelemetryOptions = new();
         openTelemetryConfiguration.Bind(openTelemetryOptions);
         services.Configure<OpenTelemetryOptions>(openTelemetryConfiguration);
-        services.PostConfigureFromHttpRequestHeaders<OpenTelemetryOptions>();
 
         services.TryAddSingleton<IActivityLoggingSampler, HttpHeadersActivityLoggingSampler>();
         services.Decorate<IActivityLoggingSampler, MyActivityLoggingSampler>();
@@ -47,6 +46,14 @@ public static class AddObservabilityExtension
 
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IActivityListenerRegistration, ActivitySourceDetectorRegistration>());
+
+        services.Configure<DiginsightDistributedContextOptions>(
+            static x =>
+            {
+                x.NonBaggageKeys.UnionWith(HttpHeadersActivityLoggingSampler.HeaderNames);
+                x.NonBaggageKeys.UnionWith(HttpHeadersSpanDurationMetricRecorderSettings.HeaderNames);
+            }
+        );
 
         var azureMonitorConnectionString = configuration["ApplicationInsights:ConnectionString"];
         services.AddLogging(
@@ -204,12 +211,11 @@ public static class AddObservabilityExtension
                         .AddSource(openTelemetryOptions.ActivitySources.ToArray())
                         .AddSource(Program.ActivitySource.Name)
                         .SetErrorStatusOnException()
-                        .SetSampler(
+                        .SetHttpHeadersSampler(
                             static sp =>
                             {
                                 OpenTelemetryOptions openTelemetryOptions = sp.GetRequiredService<IOptions<OpenTelemetryOptions>>().Value;
-                                Sampler decoratee = new ParentBasedSampler(new TraceIdRatioBasedSampler(openTelemetryOptions.TracingSamplingRatio));
-                                return ActivatorUtilities.CreateInstance<HttpHeadersSampler>(sp, decoratee);
+                                return new ParentBasedSampler(new TraceIdRatioBasedSampler(openTelemetryOptions.TracingSamplingRatio));
                             }
                         );
 
