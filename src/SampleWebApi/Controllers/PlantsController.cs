@@ -35,9 +35,9 @@ namespace SampleWebApi.Controllers
             this.cacheKeyService = cacheKeyService;
         }
 
-        [HttpGet("getplants", Name = nameof(GetPlantsAsync))]
+        [HttpGet("getplantsimpl", Name = nameof(GetPlantsImplAsync))]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
-        public async Task<IEnumerable<Plant>> GetPlantsAsync()
+        public async Task<IEnumerable<Plant>> GetPlantsImplAsync()
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger); // , new { foo, bar }
 
@@ -53,15 +53,15 @@ namespace SampleWebApi.Controllers
             return plants;
         }
 
-        [HttpGet("getplantscached", Name = nameof(GetPlantsCachedAsync))]
+        [HttpGet("getplants", Name = nameof(GetPlantsAsync))]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
-        public async Task<IEnumerable<Plant>> GetPlantsCachedAsync()
+        public async Task<IEnumerable<Plant>> GetPlantsAsync()
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger);
 
             var plants = await smartCache.GetAsync(
-                new MethodCallCacheKey(cacheKeyService, typeof(PlantsController), nameof(GetPlantsCachedAsync)),
-                _ => GetPlantsAsync(),
+                new MethodCallCacheKey(cacheKeyService, typeof(PlantsController), nameof(GetPlantsAsync)),
+                _ => GetPlantsImplAsync(),
                 new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) }
             );
 

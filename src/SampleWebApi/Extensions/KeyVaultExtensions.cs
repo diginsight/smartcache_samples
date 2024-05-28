@@ -50,39 +50,40 @@ public static class KeyVaultExtensions
         }
 
         IConfiguration configuration = builder.Build();
-        TokenCredential credential;
+        TokenCredential credential = null;
         if (isLocal)
         {
             var clientId = configuration["AzureKeyVault:ClientId"];
             var tenantId = configuration["AzureKeyVault:TenantId"];
             var clientSecret = configuration["AzureKeyVault:ClientSecret"];
 
-            ClientSecretCredentialOptions credentialOptions = new();
-            if (appsettingsEnvName?.EndsWith("cn", StringComparison.OrdinalIgnoreCase) ?? false)
+            if (!string.IsNullOrEmpty(clientId))
             {
-                credentialOptions.AuthorityHost = AzureAuthorityHosts.AzureChina;
-            }
+                var credentialOptions = new ClientSecretCredentialOptions();
+                if (appsettingsEnvName?.EndsWith("cn", StringComparison.OrdinalIgnoreCase) ?? false) { credentialOptions.AuthorityHost = AzureAuthorityHosts.AzureChina; }
 
-            credential = new ClientSecretCredential(tenantId, clientId, clientSecret, credentialOptions);
+                credential = new ClientSecretCredential(tenantId, clientId, clientSecret, credentialOptions);
+            }
         }
         else
         {
             credential = new ManagedIdentityCredential();
         }
 
-        builder.AddAzureKeyVault(new Uri(configuration["AzureKeyVault:Uri"]), credential);
+        var akvUri = configuration["AzureKeyVault:Uri"];
+        if (!string.IsNullOrEmpty(akvUri)) { builder.AddAzureKeyVault(new Uri(akvUri), credential); }
 
         int environmentVariablesIndex = builder.Sources
             .Select(static (source, index) => (source, index))
             .Where(static x => x.source is EnvironmentVariablesConfigurationSource)
             .Select(static x => x.index)
-            .FirstOrDefault(-1);
+            .LastOrDefault(-1);
         if (environmentVariablesIndex >= 0)
         {
             int sourcesCount = builder.Sources.Count;
-            IConfigurationSource kvConfigurationSource = builder.Sources.Last();
-            builder.Sources.RemoveAt(sourcesCount - 1);
-            builder.Sources.Insert(environmentVariablesIndex, kvConfigurationSource);
+            var environmentVariablesSource = builder.Sources[environmentVariablesIndex];
+            builder.Sources.RemoveAt(environmentVariablesIndex);
+            builder.Sources.Add(environmentVariablesSource);
         }
     }
 }
