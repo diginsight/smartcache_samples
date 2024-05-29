@@ -29,3 +29,15 @@ The second time you call `PlantsController.GetPlantsAsync` you'll get a __cache 
 
 ![alt text](<docs/003.01 - cache miss log.png>)
 
+
+# Additional information
+
+Additional information is available in the following articles:<br>
+
+>- [Introduction to diginsight smartcache](https://github.com/diginsight/smartcache?tab=readme-ov-file#introduction)<br>
+>Explores __basic concepts about diginsight smartcache__ and how to integrate it<br>
+>- [HowTo: Debug samples using diginsight project references](https://github.com/diginsight/telemetry?tab=readme-ov-file#GETTING-STARTED)<br>
+>Explores how to use the samples solution and __debug__ diginsight code<br>
+
+
+
