@@ -16,11 +16,11 @@ you can use the following solutions:
 
 ## Step 02: run SampleWebApi and call getplants operation
 
-after running  the sample you'll obtain: 
-![alt text](<docs/002.01 - service started.png>)
+After running  the sample you'll obtain se service seagger shown: 
+![alt text](<docs/002.01a - service started.png>)
 
-after calling the operation your `%userprofile%\LogFiles\Diginsight` folder will contain the following log:
-![alt text](<docs/002.02 - cache miss log.png>)
+After calling the operation your `%userprofile%\LogFiles\Diginsight` folder will contain the following log file:
+![alt text](<docs/002.02a - cache miss log.png>)
 
 please note the call has a __cache miss__ and latency is __over 1 second__.
 
