@@ -20,7 +20,7 @@ After running  the sample you'll obtain se __service swagger__ shown:
 ![alt text](<docs/002.01a - service started.png>)
 
 After calling the operation your `%userprofile%\LogFiles\Diginsight` folder will contain the following __log file__:
-![alt text](<docs/002.02a - cache miss log.png>)
+![alt text](<docs/002.02b - cache miss log.png>)
 
 Please note the call has a __cache miss__ from `PlantsController.GetPlantsAsync` and latency is __over 1 second__ when obtaining data from ``PlantsController.GetPlantsImplAsync``.
 
