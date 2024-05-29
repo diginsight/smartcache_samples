@@ -16,16 +16,16 @@ you can use the following solutions:
 
 ## Step 02: run SampleWebApi and call getplants operation
 
-After running  the sample you'll obtain se service seagger shown: 
+After running  the sample you'll obtain se __service swagger__ shown: 
 ![alt text](<docs/002.01a - service started.png>)
 
-After calling the operation your `%userprofile%\LogFiles\Diginsight` folder will contain the following log file:
+After calling the operation your `%userprofile%\LogFiles\Diginsight` folder will contain the following __log file__:
 ![alt text](<docs/002.02a - cache miss log.png>)
 
-please note the call has a __cache miss__ and latency is __over 1 second__.
+Please note the call has a __cache miss__ from `PlantsController.GetPlantsAsync` and latency is __over 1 second__ when obtaining data from ``PlantsController.GetPlantsImplAsync``.
 
 ## Step 02:call getplants operation a second time
-the second time you'll get a __cache hit__ and latency will be 5ms.
+The second time you call `PlantsController.GetPlantsAsync` you'll get a __cache hit__ and latency will be __5ms__.
 
 ![alt text](<docs/003.01 - cache miss log.png>)
 
