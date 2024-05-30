@@ -36,7 +36,7 @@ Additional information is available in the following articles:<br>
 
 >- [Introduction to diginsight smartcache](https://github.com/diginsight/smartcache?tab=readme-ov-file#introduction)<br>
 >Explores __basic concepts about diginsight smartcache__ and how to integrate it<br>
->- [HowTo: Debug samples using diginsight project references](https://github.com/diginsight/telemetry?tab=readme-ov-file#GETTING-STARTED)<br>
+>- [HowTo: Debug samples using diginsight project references](docs/Articles/01_HowTo_Debug_samples_using_diginsight_project_references/01_HowTo_Debug_samples_using_diginsight_project_references.md)<br>
 >Explores how to use the samples solution and __debug__ diginsight code<br>
 
 

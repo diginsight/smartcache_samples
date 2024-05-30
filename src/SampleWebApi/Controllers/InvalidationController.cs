@@ -20,7 +20,8 @@ namespace SampleWebApi.Controllers
             "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
         };
 
-        public InvalitationController(ILogger<InvalitationController> logger,
+        public InvalitationController(
+            ILogger<InvalitationController> logger,
             IClassAwareOptionsMonitor<FeatureFlagOptions> featureFlagsOptionsMonitor)
         {
             this.logger = logger;
@@ -37,7 +38,7 @@ namespace SampleWebApi.Controllers
 
             Thread.Sleep(1000);
 
-            activity.SetOutput(result);
+            activity?.SetOutput(result);
             return result;
         }
     }

@@ -5,6 +5,7 @@ using Diginsight.SmartCache;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace SampleWebApi.Controllers
@@ -33,6 +34,9 @@ namespace SampleWebApi.Controllers
             this.featureFlagsOptionsMonitor = featureFlagsOptionsMonitor;
             this.smartCache = smartCache;
             this.cacheKeyService = cacheKeyService;
+
+            using var activity = Program.ActivitySource.StartMethodActivity(logger); // , new { foo, bar }
+
         }
 
         [HttpGet("getplantsimpl", Name = nameof(GetPlantsImplAsync))]
@@ -49,9 +53,28 @@ namespace SampleWebApi.Controllers
             var plantsString = await System.IO.File.ReadAllTextAsync("Content/plants.json");
             var plants = JsonConvert.DeserializeObject<IEnumerable<Plant>>(plantsString);
 
-            activity.SetOutput(plants);
+            activity?.SetOutput(plants);
             return plants;
         }
+
+        [HttpGet("getplantbyidimpl/{id}", Name = nameof(GetPlantByIdImplAsync))]
+        [ApiVersion(ApiVersions.V_2024_04_26.Name)]
+        public async Task<Plant> GetPlantByIdImplAsync([FromQuery] Guid id)
+        {
+            using var activity = Program.ActivitySource.StartMethodActivity(logger, new { id });
+
+            var result = default(IEnumerable<Plant>);
+
+            Thread.Sleep(1000);
+
+            var plants = await GetPlantsAsync();
+
+            var plant = plants.FirstOrDefault(p => p.Id == id);
+
+            activity?.SetOutput(plant);
+            return plant;
+        }
+
 
         [HttpGet("getplants", Name = nameof(GetPlantsAsync))]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
@@ -65,44 +88,67 @@ namespace SampleWebApi.Controllers
                 new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) }
             );
 
-            activity.SetOutput(plants);
+            activity?.SetOutput(plants);
             return plants;
         }
 
         [HttpGet("getplantbyid", Name = nameof(GetPlantByIdAsync))]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
-        public async Task<IEnumerable<Plant>> GetPlantByIdAsync(Guid id)
-        {
-            using var activity = Program.ActivitySource.StartMethodActivity(logger); // , new { foo, bar }
-
-            var result = default(IEnumerable<Plant>);
-
-            Thread.Sleep(1000);
-
-            var plants = new List<Plant>();
-            plants.Add(new Plant() { Id = Guid.NewGuid(), Name = "Plant1 Name" });
-            plants.Add(new Plant() { Id = Guid.NewGuid(), Name = "Plant2 Name" });
-
-            var s = JsonConvert.SerializeObject(plants);
-
-            activity.SetOutput(result);
-            return result;
-        }
-
-        [HttpGet("getplantbyidcached", Name = nameof(GetPlantByIdCachedAsync))]
-        [ApiVersion(ApiVersions.V_2024_04_26.Name)]
-        public async Task<IEnumerable<Plant>> GetPlantByIdCachedAsync(Guid id)
+        public async Task<Plant> GetPlantByIdAsync(Guid plantId)
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger);
 
-            var plants = await smartCache.GetAsync(
-                new MethodCallCacheKey(cacheKeyService, typeof(PlantsController), nameof(GetPlantByIdCachedAsync)),
-                _ => GetPlantByIdAsync(id),
+            var plant = await smartCache.GetAsync(
+                new GetPlantByIdCacheKey(plantId),
+                _ => GetPlantByIdImplAsync(plantId),
                 new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) }
             );
 
-            activity.SetOutput(plants);
+            activity?.SetOutput(plant);
+            return plant;
+        }
+
+
+        [HttpPost("createorupdateplant", Name = nameof(CreateOrUpdatePlant))]
+        [ApiVersion(ApiVersions.V_2024_04_26.Name)]
+        public async Task<IEnumerable<Plant>> CreateOrUpdatePlant(Plant newplant)
+        {
+            using var activity = Program.ActivitySource.StartMethodActivity(logger); // , new { foo, bar }
+
+            var plants = (await GetPlantsImplAsync())?.ToList();
+
+            var plant = plants?.FirstOrDefault(p => p.Id == newplant.Id);
+            if (plant != null)
+            {
+                plant.Name = newplant.Name;
+                plant.Description = newplant.Description;
+                plant.Address = newplant.Address;
+            }
+            else { plants?.Add(newplant); }
+
+
+
+            // Save plants to content file /Content/plants.json
+            var plantsString = JsonConvert.SerializeObject(plants);
+            await System.IO.File.WriteAllTextAsync("Content/plants.json", plantsString);
+
+            activity?.SetOutput(plants);
             return plants;
         }
+
+
+        public record PlantInvalidationRule(string PlantId, string PlantType) : IInvalidationRule;
+        [SuppressMessage("ReSharper", "NotAccessedPositionalProperty.Local")]
+        private sealed record GetPlantByIdCacheKey(string PlantId) : IInvalidatable
+        {
+            public bool IsInvalidatedBy(IInvalidationRule invalidationRule, out Func<Task> ic)
+            {
+                ic = null;
+                return invalidationRule is PlantInvalidationRule pir
+                        && pir.PlantId == PlantId;
+                        //&& pir.PlantType == PlantType;
+            }
+        }
+
     }
 }
