@@ -59,7 +59,7 @@ namespace SampleWebApi.Controllers
 
         [HttpGet("getplantbyidimpl/{id}", Name = nameof(GetPlantByIdImplAsync))]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
-        public async Task<Plant> GetPlantByIdImplAsync([FromQuery] Guid id)
+        public async Task<Plant> GetPlantByIdImplAsync([FromRoute] Guid id)
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger, new { id });
 
@@ -82,27 +82,34 @@ namespace SampleWebApi.Controllers
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger);
 
-            var plants = await smartCache.GetAsync(
-                new MethodCallCacheKey(cacheKeyService, typeof(PlantsController), nameof(GetPlantsAsync)),
-                _ => GetPlantsImplAsync(),
-                new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) }
-            );
+            var options = new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) };
+            var cacheKey = new GetPlantByIdCacheKey(Guid.Empty);
 
+            Task<IEnumerable<Plant>> getCachedValuesAsync() => smartCache.GetAsync(
+                cacheKey, _ => GetPlantsImplAsync(), options
+             );
+            cacheKey.ReloadAsync = getCachedValuesAsync;
+
+            var plants = await getCachedValuesAsync();
             activity?.SetOutput(plants);
             return plants;
         }
 
-        [HttpGet("getplantbyid", Name = nameof(GetPlantByIdAsync))]
+        [HttpGet("getplantbyid/{id}", Name = nameof(GetPlantByIdAsync))]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
-        public async Task<Plant> GetPlantByIdAsync(Guid plantId)
+        public async Task<Plant> GetPlantByIdAsync([FromRoute] Guid plantId)
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger);
 
-            var plant = await smartCache.GetAsync(
-                new GetPlantByIdCacheKey(plantId),
-                _ => GetPlantByIdImplAsync(plantId),
-                new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) }
-            );
+            var options = new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) };
+            var cacheKey = new GetPlantByIdCacheKey(plantId);
+
+            Task<Plant?> getCachedValueAsync() => smartCache.GetAsync(
+                cacheKey, _ => GetPlantByIdImplAsync(plantId), options
+             );
+            cacheKey.ReloadAsync = getCachedValueAsync;
+
+            var plant = await getCachedValueAsync();
 
             activity?.SetOutput(plant);
             return plant;
@@ -123,31 +130,36 @@ namespace SampleWebApi.Controllers
                 plant.Name = newplant.Name;
                 plant.Description = newplant.Description;
                 plant.Address = newplant.Address;
+                plant.CreationDate = newplant.CreationDate;
             }
             else { plants?.Add(newplant); }
 
-
-
-            // Save plants to content file /Content/plants.json
             var plantsString = JsonConvert.SerializeObject(plants);
             await System.IO.File.WriteAllTextAsync("Content/plants.json", plantsString);
+
+            smartCache.Invalidate(new PlantInvalidationRule(newplant.Id)); logger.LogDebug($"smartCache.Invalidate(new PlantInvalidationRule({newplant.Id}));");
 
             activity?.SetOutput(plants);
             return plants;
         }
 
 
-        public record PlantInvalidationRule(string PlantId, string PlantType) : IInvalidationRule;
+        public record PlantInvalidationRule(Guid PlantId) : IInvalidationRule;
         [SuppressMessage("ReSharper", "NotAccessedPositionalProperty.Local")]
-        private sealed record GetPlantByIdCacheKey(string PlantId) : IInvalidatable
+        private sealed record GetPlantByIdCacheKey(Guid PlantId) : IInvalidatable
         {
             public bool IsInvalidatedBy(IInvalidationRule invalidationRule, out Func<Task> ic)
             {
+                if (invalidationRule is PlantInvalidationRule pir && (PlantId == Guid.Empty || pir.PlantId == PlantId))
+                {
+                    ic = ReloadAsync; return true;
+                }
+
                 ic = null;
-                return invalidationRule is PlantInvalidationRule pir
-                        && pir.PlantId == PlantId;
-                        //&& pir.PlantType == PlantType;
+                return false;
             }
+            public Func<Task> ReloadAsync { private get; set; }
+
         }
 
     }
