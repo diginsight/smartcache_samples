@@ -7,17 +7,16 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using static Google.Protobuf.Compiler.CodeGeneratorResponse.Types;
 
 namespace SampleWebApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     [ApiExplorerSettings(GroupName = "common")]
-    public class PlantsController : ControllerBase
+    public class PlantsWithInvalidationController : ControllerBase
     {
-        private readonly Type T = typeof(PlantsController);
-        private readonly ILogger<PlantsController> logger;
+        private static readonly Type T = typeof(PlantsWithInvalidationController);
+        private readonly ILogger<PlantsWithInvalidationController> logger;
         private readonly IClassAwareOptionsMonitor<FeatureFlagOptions> featureFlagsOptionsMonitor;
         private readonly ISmartCache smartCache;
         private readonly ICacheKeyService cacheKeyService;
@@ -27,7 +26,7 @@ namespace SampleWebApi.Controllers
             "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
         };
 
-        public PlantsController(ILogger<PlantsController> logger,
+        public PlantsWithInvalidationController(ILogger<PlantsWithInvalidationController> logger,
             IClassAwareOptionsMonitor<FeatureFlagOptions> featureFlagsOptionsMonitor,
             ISmartCache smartCache,
             ICacheKeyService cacheKeyService)
@@ -41,7 +40,7 @@ namespace SampleWebApi.Controllers
 
         }
 
-        [HttpGet("getplantsimpl", Name = nameof(GetPlantsImplAsync))]
+        [HttpGet("getplantsimpl", Name = $"PlantsWithInvalidationController_{nameof(GetPlantsImplAsync)}")]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
         public async Task<IEnumerable<Plant>> GetPlantsImplAsync()
         {
@@ -59,7 +58,7 @@ namespace SampleWebApi.Controllers
             return plants;
         }
 
-        [HttpGet("getplantbyidimpl/{id}", Name = nameof(GetPlantByIdImplAsync))]
+        [HttpGet("getplantbyidimpl/{id}", Name = $"PlantsWithInvalidationController_{nameof(GetPlantByIdImplAsync)}")]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
         public async Task<Plant> GetPlantByIdImplAsync([FromRoute] Guid id)
         {
@@ -78,38 +77,45 @@ namespace SampleWebApi.Controllers
         }
 
 
-        [HttpGet("getplants", Name = nameof(GetPlantsAsync))]
+        [HttpGet("getplants", Name = $"PlantsWithInvalidationController_{nameof(GetPlantsAsync)}")]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
         public async Task<IEnumerable<Plant>> GetPlantsAsync()
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger);
 
             var options = new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) };
-            var cacheKey = new MethodCallCacheKey(cacheKeyService, typeof(PlantsController), nameof(GetPlantsAsync));
-            
-            var plants = await smartCache.GetAsync(cacheKey, _ => GetPlantsImplAsync(), options);
+            var cacheKey = new GetPlantByIdCacheKey(cacheKeyService, Guid.Empty);
 
+            Task<IEnumerable<Plant>> getCachedValuesAsync() =>
+                smartCache.GetAsync(cacheKey, _ => GetPlantsImplAsync(), options);
+            // cacheKey.ReloadAsync = getCachedValuesAsync; // Uncomment this to enable automatic reload after invalidation
+
+            var plants = await getCachedValuesAsync();
             activity?.SetOutput(plants);
             return plants;
         }
 
-        [HttpGet("getplantbyid/{plantId}", Name = nameof(GetPlantByIdAsync))]
+        [HttpGet("getplantbyid/{plantId}", Name = $"PlantsWithInvalidationController_{nameof(GetPlantByIdAsync)}")]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
         public async Task<Plant> GetPlantByIdAsync([FromRoute] Guid plantId)
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger);
 
             var options = new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) };
-            var cacheKey = new MethodCallCacheKey(cacheKeyService, typeof(PlantsController), nameof(GetPlantByIdAsync), plantId);
+            var cacheKey = new GetPlantByIdCacheKey(cacheKeyService, plantId);
 
-            var plant = await smartCache.GetAsync(cacheKey, _ => GetPlantByIdImplAsync(plantId), options);
+            Task<Plant?> getCachedValueAsync() =>
+                smartCache.GetAsync(cacheKey, _ => GetPlantByIdImplAsync(plantId), options);
+            // cacheKey.ReloadAsync = getCachedValueAsync; // Uncomment this to enable automatic reload after invalidation
+
+            var plant = await getCachedValueAsync();
 
             activity?.SetOutput(plant);
             return plant;
         }
 
 
-        [HttpPost("createorupdateplant", Name = nameof(CreateOrUpdatePlant))]
+        [HttpPost("createorupdateplant", Name = $"PlantsWithInvalidationController_{nameof(CreateOrUpdatePlant)}")]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
         public async Task<IEnumerable<Plant>> CreateOrUpdatePlant(Plant newplant)
         {
