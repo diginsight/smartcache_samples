@@ -83,31 +83,31 @@ namespace SampleWebApi.Controllers
             using var activity = Program.ActivitySource.StartMethodActivity(logger);
 
             var options = new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) };
-            var cacheKey = new GetPlantByIdCacheKey(Guid.Empty);
+            var cacheKey = new GetPlantByIdCacheKey(Guid.Empty); // cacheKeyService, 
 
             Task<IEnumerable<Plant>> getCachedValuesAsync() => smartCache.GetAsync(
                 cacheKey, _ => GetPlantsImplAsync(), options
-             );
-            cacheKey.ReloadAsync = getCachedValuesAsync;
+            );
+            //cacheKey.ReloadAsync = getCachedValuesAsync;
 
             var plants = await getCachedValuesAsync();
             activity?.SetOutput(plants);
             return plants;
         }
 
-        [HttpGet("getplantbyid/{id}", Name = nameof(GetPlantByIdAsync))]
+        [HttpGet("getplantbyid/{plantId}", Name = nameof(GetPlantByIdAsync))]
         [ApiVersion(ApiVersions.V_2024_04_26.Name)]
         public async Task<Plant> GetPlantByIdAsync([FromRoute] Guid plantId)
         {
             using var activity = Program.ActivitySource.StartMethodActivity(logger);
 
             var options = new SmartCacheOperationOptions() { MaxAge = TimeSpan.FromMinutes(10) };
-            var cacheKey = new GetPlantByIdCacheKey(plantId);
+            var cacheKey = new GetPlantByIdCacheKey(plantId); //cacheKeyService, 
 
             Task<Plant?> getCachedValueAsync() => smartCache.GetAsync(
                 cacheKey, _ => GetPlantByIdImplAsync(plantId), options
-             );
-            cacheKey.ReloadAsync = getCachedValueAsync;
+            );
+            //cacheKey.ReloadAsync = getCachedValueAsync;
 
             var plant = await getCachedValueAsync();
 
@@ -142,25 +142,5 @@ namespace SampleWebApi.Controllers
             activity?.SetOutput(plants);
             return plants;
         }
-
-
-        public record PlantInvalidationRule(Guid PlantId) : IInvalidationRule;
-        [SuppressMessage("ReSharper", "NotAccessedPositionalProperty.Local")]
-        private sealed record GetPlantByIdCacheKey(Guid PlantId) : IInvalidatable
-        {
-            public bool IsInvalidatedBy(IInvalidationRule invalidationRule, out Func<Task> ic)
-            {
-                if (invalidationRule is PlantInvalidationRule pir && (PlantId == Guid.Empty || pir.PlantId == PlantId))
-                {
-                    ic = ReloadAsync; return true;
-                }
-
-                ic = null;
-                return false;
-            }
-            public Func<Task> ReloadAsync { private get; set; }
-
-        }
-
     }
 }
